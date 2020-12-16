@@ -64,12 +64,14 @@ class SudokuBoard:
     def highlight_cell(self):
         if self.x is None or self.y is None:
             return
+        line_fix_x = 2 if self.x % self.x_cells_group == 0 else 1
+        line_fix_y = 2 if self.y % self.y_cells_group == 0 else 1
         pygame.draw.rect(surface=self.screen,
                          color=self.highlight_color,
-                         rect=pygame.Rect(self.margin + self.x * self.cell_size_x,
-                                          self.margin + self.y * self.cell_size_y,
-                                          self.cell_size_x,
-                                          self.cell_size_y)
+                         rect=pygame.Rect(self.margin + self.x * self.cell_size_x + line_fix_x,
+                                          self.margin + self.y * self.cell_size_y + line_fix_y,
+                                          self.cell_size_x - line_fix_x,
+                                          self.cell_size_y - line_fix_y)
                          )
 
     @staticmethod
@@ -82,7 +84,7 @@ class SudokuBoard:
 
     def update_coordinates(self, pos):
         self.x = SudokuBoard.check_limitations((pos[0] - self.margin) // (self.cell_size_x + 1), 0, self.x_cells - 1)
-        self.y = SudokuBoard.check_limitations((pos[1] - self.margin)  // (self.cell_size_y + 1), 0, self.y_cells - 1)
+        self.y = SudokuBoard.check_limitations((pos[1] - self.margin) // (self.cell_size_y + 1), 0, self.y_cells - 1)
 
     def check_mouse_navigation(self):
         self.update_coordinates(pygame.mouse.get_pos())
