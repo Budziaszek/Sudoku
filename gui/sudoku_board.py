@@ -1,5 +1,7 @@
 import pygame
 
+from gui.button import Button
+
 
 class SudokuBoard:
 
@@ -12,20 +14,26 @@ class SudokuBoard:
         self.y_cells = 9
         self.y_cells_group = 3
 
+        pygame.font.init()
+        self.font = pygame.font.SysFont("cambriacambriamath", 30)
+        self.button_font = pygame.font.SysFont("cambriacambriamath", 18)
+
         self.cell_size_x = self.cell_size_y = 40
         self.margin = 10
-        self.width = self.cell_size_x * self.x_cells + 2 * self.margin
-        self.height = self.cell_size_y * self.y_cells + 2 * self.margin
+        self.button_height = Button.get_size('', self.button_font)[1]
 
-        self.screen = pygame.display.set_mode((self.width, self.height))
+        self.grid_width = self.cell_size_x * self.x_cells + 2 * self.margin
+        self.grid_height = self.cell_size_y * self.y_cells + 2 * self.margin
+        self.window_width = self.grid_width
+        self.window_height = self.grid_height + self.button_height + 1 * self.margin
+
+        self.screen = pygame.display.set_mode((self.window_width, self.window_height))
         pygame.display.set_caption("Sudoku")
 
         self.line_color = (0, 0, 0)
         self.value_color = (0, 0, 0)
-        self.highlight_color = (73, 139, 201)
-
-        pygame.font.init()
-        self.font = pygame.font.SysFont("cambriacambriamath", 30)
+        self.system_value_color = (44, 181, 2)
+        self.highlight_color = (174, 237, 111)
 
         self.x = 0
         self.y = 0
@@ -39,6 +47,16 @@ class SudokuBoard:
 
         self.grid = [[0 for _ in range(self.x_cells)] for _ in range(self.y_cells)]
 
+        self.observers = []
+        self.check_button = Button(parent=self,
+                                   surface=self.screen,
+                                   text="Check",
+                                   font=self.button_font,
+                                   position=(self.margin, self.grid_height))
+
+    def add_observer(self, observer):
+        self.observers.append(observer)
+
     def quit(self):
         self.done = True
 
@@ -46,7 +64,7 @@ class SudokuBoard:
         for i in range(number_of_lines):
             current_position = i * step + self.margin
             start = self.margin
-            end = self.width if horizontal else self.height
+            end = self.grid_width if horizontal else self.grid_height
             end -= self.margin
 
             start_pos = (start, current_position)
@@ -88,24 +106,27 @@ class SudokuBoard:
                          )
 
     @staticmethod
-    def check_limitations(value, minimum, maximum):
-        if value > maximum:
-            return maximum
-        if value < minimum:
-            return minimum
-        return value
+    def check_limitations(new_value, minimum, maximum):
+        if new_value > maximum:
+            return False
+        if new_value < minimum:
+            return False
+        return True
 
     def update_coordinates(self, pos):
-        self.x = SudokuBoard.check_limitations((pos[0] - self.margin) // (self.cell_size_x + 1), 0, self.x_cells - 1)
-        self.y = SudokuBoard.check_limitations((pos[1] - self.margin) // (self.cell_size_y + 1), 0, self.y_cells - 1)
+        cell_x = (pos[0] - self.margin) // (self.cell_size_x + 1)
+        cell_y = (pos[1] - self.margin) // (self.cell_size_y + 1)
+        if SudokuBoard.check_limitations(cell_x, 0, self.x_cells - 1):
+            if SudokuBoard.check_limitations(cell_y, 0, self.y_cells - 1):
+                self.x = cell_x
+                self.y = cell_y
 
     def check_mouse_navigation(self):
         self.update_coordinates(pygame.mouse.get_pos())
 
     def check_keyboard_navigation(self, key):
         if key in self.navigation_keys.keys():
-            self.x = SudokuBoard.check_limitations(self.x + self.navigation_keys[key][0], 0, self.x_cells - 1)
-            self.y = SudokuBoard.check_limitations(self.y + self.navigation_keys[key][1], 0, self.y_cells - 1)
+            self.update_coordinates(pos=(self.x + self.navigation_keys[key][0], self.y + self.navigation_keys[key][1]))
         elif key is pygame.K_BACKSPACE:
             self.grid[self.x][self.y] = 0
         else:
@@ -120,6 +141,7 @@ class SudokuBoard:
         self.draw_lines(self.y_cells + 1, self.cell_size_y, True)
         self.highlight_cell()
         self.draw_values()
+        self.check_button.draw()
 
     def start(self):
         while not self.done:
@@ -131,6 +153,8 @@ class SudokuBoard:
                     self.check_keyboard_navigation(event.key)
                 if event.type == pygame.MOUSEBUTTONDOWN:
                     self.check_mouse_navigation()
+                for observer in self.observers:
+                    observer.process_event(event, pygame.mouse.get_pos())
             self.draw()
             pygame.display.update()
         pygame.quit()
