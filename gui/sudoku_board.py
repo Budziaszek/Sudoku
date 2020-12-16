@@ -113,20 +113,23 @@ class SudokuBoard:
             return False
         return True
 
-    def update_coordinates(self, pos):
+    def get_cell_pos(self, pos):
         cell_x = (pos[0] - self.margin) // (self.cell_size_x + 1)
         cell_y = (pos[1] - self.margin) // (self.cell_size_y + 1)
+        return cell_x, cell_y
+
+    def update_selected_cell(self, cell_x, cell_y):
         if SudokuBoard.check_limitations(cell_x, 0, self.x_cells - 1):
             if SudokuBoard.check_limitations(cell_y, 0, self.y_cells - 1):
                 self.x = cell_x
                 self.y = cell_y
 
     def check_mouse_navigation(self):
-        self.update_coordinates(pygame.mouse.get_pos())
+        self.update_selected_cell(*self.get_cell_pos(pygame.mouse.get_pos()))
 
     def check_keyboard_navigation(self, key):
         if key in self.navigation_keys.keys():
-            self.update_coordinates(pos=(self.x + self.navigation_keys[key][0], self.y + self.navigation_keys[key][1]))
+            self.update_selected_cell(self.x + self.navigation_keys[key][0], self.y + self.navigation_keys[key][1])
         elif key is pygame.K_BACKSPACE:
             self.grid[self.x][self.y] = 0
         else:

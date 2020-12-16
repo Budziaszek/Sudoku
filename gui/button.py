@@ -6,19 +6,22 @@ class Button:
     DEFAULT_PADDING = 10
 
     def __init__(self, parent, surface, text, font, position, color=(200, 200, 200), text_color=(0, 0, 0),
-                 cover_color=(300, 300, 300)):
-        self.surface = surface
+                 cover_color=(150, 150, 150)):
         self.text = text
-        self.position = position
-        self.color = color
-        self.cover_color = cover_color
         self.text_color = text_color
-        self.current_color = color
         self.font = font
+
+        self.surface = surface
+        self.position = position
         self.padding = Button.DEFAULT_PADDING
-        parent.add_observer(self)
         self.button_width = self.font.size(self.text)[0] + 2 * self.padding
         self.button_height = self.font.size(self.text)[1] + 2 * self.padding
+
+        self.color = color
+        self.cover_color = cover_color
+        self.current_color = color
+
+        parent.add_observer(self)
 
     @staticmethod
     def get_size(text, font, padding=DEFAULT_PADDING):
@@ -32,5 +35,14 @@ class Button:
                                           self.position[1] + self.button_height / 2))
         self.surface.blit(text, text_rect)
 
+    def is_mouse_over(self, mouse_position):
+        if 0 < mouse_position[0] - self.position[0] < self.button_width:
+            if 0 < mouse_position[1] - self.position[1] < self.button_height:
+                return True
+        return False
+
     def process_event(self, event, mouse_position):
-        pass
+        if self.is_mouse_over(mouse_position):
+            self.current_color = self.cover_color
+        else:
+            self.current_color = self.color
