@@ -1,6 +1,9 @@
 import pygame
 
 from gui.button import Button
+import threading
+import time
+import numpy as np
 
 
 class SudokuBoard:
@@ -17,6 +20,7 @@ class SudokuBoard:
         pygame.font.init()
         self.font = pygame.font.SysFont("cambriacambriamath", 30)
         self.button_font = pygame.font.SysFont("cambriacambriamath", 18)
+        self.info_font = pygame.font.SysFont("cambriacambriamath", 45, bold=True)
 
         self.cell_size_x = self.cell_size_y = 40
         self.margin = 10
@@ -32,6 +36,7 @@ class SudokuBoard:
 
         self.line_color = (0, 0, 0)
         self.value_color = (0, 0, 0)
+        self.info_color = (0, 0, 0)
         self.system_value_color = (44, 181, 2)
         self.highlight_color = (174, 237, 111)
 
@@ -45,7 +50,18 @@ class SudokuBoard:
             pygame.K_DOWN: (0, 1),
         }
 
-        self.grid = [[0 for _ in range(self.x_cells)] for _ in range(self.y_cells)]
+        self.grid = np.zeros(shape=(self.x_cells, self.y_cells), dtype=int)
+
+        test_array = [[8, 3, 5, 4, 1, 6, 9, 2, 7],
+                           [2, 9, 6, 8, 5, 7, 4, 3, 1],
+                           [4, 1, 7, 2, 9, 3, 6, 5, 8],
+                           [5, 6, 9, 1, 3, 4, 7, 8, 2],
+                           [1, 2, 3, 6, 7, 8, 5, 4, 9],
+                           [7, 4, 8, 5, 2, 9, 1, 6, 3],
+                           [6, 5, 2, 7, 8, 1, 3, 9, 4],
+                           [9, 8, 1, 3, 4, 5, 2, 7, 6],
+                           [3, 7, 4, 9, 6, 2, 8, 1, 5]]
+        self.grid = np.array(test_array)
 
         self.observers = []
         self.check_button = Button(parent=self,
@@ -53,6 +69,9 @@ class SudokuBoard:
                                    text="Check",
                                    font=self.button_font,
                                    position=(self.margin, self.grid_height))
+        self.check_button.set_on_click_event(self.check_and_display_info)
+
+        self.info = None
 
     def add_observer(self, observer):
         self.observers.append(observer)
@@ -139,12 +158,71 @@ class SudokuBoard:
             if s.isdigit() and int(s) != 0:
                 self.grid[self.x][self.y] = int(s)
 
+    def draw_info(self):
+        if self.info is None:
+            return
+        info = self.info_font.render(self.info, True, self.info_color)
+        into_text_rect = info.get_rect(center=(self.grid_width / 2, self.grid_height / 2))
+        self.screen.blit(info, into_text_rect)
+
     def draw(self):
         self.draw_lines(self.x_cells + 1, self.cell_size_x, False)
         self.draw_lines(self.y_cells + 1, self.cell_size_y, True)
         self.highlight_cell()
         self.draw_values()
         self.check_button.draw()
+        self.draw_info()
+
+    def animate_and_hide_info(self):
+        text = self.info
+        for i in range(10):
+            time.sleep(0.1)
+            if i % 2 == 0:
+                self.info = text
+            else:
+                self.info = None
+
+    def check_and_display_info(self):
+        if self.check():
+            self.info = "Correct!"
+            self.info_color = (22, 112, 4)
+        else:
+            self.info = 'Incorrect!'
+            self.info_color = (186, 0, 0)
+        threading.Thread(target=self.animate_and_hide_info).start()
+
+    @staticmethod
+    def check_iterable(elements, iter_obj):
+        for required_el in elements:
+            if required_el not in iter_obj:
+                return False
+        return True
+
+    @staticmethod
+    def check_rows(grid, elements):
+        for row in grid:
+            if not SudokuBoard.check_iterable(elements, row):
+                return False
+        return True
+
+    def check_groups(self, elements):
+        x_groups = int(self.x_cells / self.x_cells_group)
+        y_groups = int(self.y_cells / self.y_cells_group)
+        for i in range(0, x_groups):
+            for j in range(0, y_groups):
+                sub_g = self.grid[i * self.x_cells_group:(i + 1) * self.x_cells_group,
+                        j * self.y_cells_group:(j + 1) * self.y_cells_group]
+                sub_g = sub_g.reshape(self.x_cells_group * self.y_cells_group)
+                if not SudokuBoard.check_iterable(elements, sub_g):
+                    return False
+        return True
+
+    def check(self):
+        elements = range(1, self.y_cells_group * self.x_cells_group)
+        rows_correct = self.check_rows(self.grid, elements)
+        columns_correct = self.check_rows(np.rot90(self.grid), elements)
+        groups_correct = self.check_groups(elements)
+        return rows_correct and columns_correct and groups_correct
 
     def start(self):
         while not self.done:

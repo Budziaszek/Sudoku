@@ -21,6 +21,8 @@ class Button:
         self.cover_color = cover_color
         self.current_color = color
 
+        self.on_click = lambda: None
+
         parent.add_observer(self)
 
     @staticmethod
@@ -42,7 +44,15 @@ class Button:
         return False
 
     def process_event(self, event, mouse_position):
-        if self.is_mouse_over(mouse_position):
-            self.current_color = self.cover_color
-        else:
-            self.current_color = self.color
+        if event.type == pygame.MOUSEMOTION:
+            if self.is_mouse_over(mouse_position):
+                self.current_color = self.cover_color
+            else:
+                self.current_color = self.color
+        if event.type == pygame.MOUSEBUTTONDOWN:
+            if self.is_mouse_over(mouse_position):
+                self.on_click()
+
+    def set_on_click_event(self, fun):
+        self.on_click = fun
+
