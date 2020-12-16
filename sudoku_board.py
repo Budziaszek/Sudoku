@@ -21,6 +21,10 @@ class SudokuBoard:
         pygame.display.set_caption("Sudoku")
 
         self.line_color = (0, 0, 0)
+        self.highlight_color = (73, 139, 201)
+
+        self.x = 0
+        self.y = 0
 
     def quit(self):
         self.done = True
@@ -48,6 +52,18 @@ class SudokuBoard:
     def draw(self):
         self.draw_lines(self.x_cells + 1, self.cell_size_x, False)
         self.draw_lines(self.y_cells + 1, self.cell_size_y, True)
+        self.highlight_cell()
+
+    def highlight_cell(self):
+        if self.x is None or self.y is None:
+            return
+        pygame.draw.rect(surface=self.screen,
+                         color=self.highlight_color,
+                         rect=pygame.Rect(self.margin + self.x * self.cell_size_x,
+                                          self.margin + self.y * self.cell_size_y,
+                                          self.cell_size_x,
+                                          self.cell_size_y)
+                         )
 
     def start(self):
         while not self.done:
