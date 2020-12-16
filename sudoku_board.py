@@ -21,7 +21,11 @@ class SudokuBoard:
         pygame.display.set_caption("Sudoku")
 
         self.line_color = (0, 0, 0)
+        self.value_color = (0, 0, 0)
         self.highlight_color = (73, 139, 201)
+
+        pygame.font.init()
+        self.font = pygame.font.SysFont("cambriacambriamath", 30)
 
         self.x = 0
         self.y = 0
@@ -32,6 +36,8 @@ class SudokuBoard:
             pygame.K_UP: (0, -1),
             pygame.K_DOWN: (0, 1),
         }
+
+        self.grid = [[0 for _ in range(self.x_cells)] for _ in range(self.y_cells)]
 
     def quit(self):
         self.done = True
@@ -56,10 +62,17 @@ class SudokuBoard:
                              end_pos=end_pos,
                              width=(2 if i % 3 == 0 else 1))
 
-    def draw(self):
-        self.draw_lines(self.x_cells + 1, self.cell_size_x, False)
-        self.draw_lines(self.y_cells + 1, self.cell_size_y, True)
-        self.highlight_cell()
+    def draw_value(self, value, x, y):
+        text = self.font.render(str(value), True, self.value_color)
+        text_rect = text.get_rect(center=((x * self.cell_size_x) + self.margin + self.cell_size_x / 2,
+                                          (y * self.cell_size_y) + self.margin + self.cell_size_y / 2))
+        self.screen.blit(text, text_rect)
+
+    def draw_values(self):
+        for i in range(self.x_cells):
+            for j in range(self.y_cells):
+                if self.grid[i][j] != 0:
+                    self.draw_value(self.grid[i][j], i, j)
 
     def highlight_cell(self):
         if self.x is None or self.y is None:
@@ -93,6 +106,20 @@ class SudokuBoard:
         if key in self.navigation_keys.keys():
             self.x = SudokuBoard.check_limitations(self.x + self.navigation_keys[key][0], 0, self.x_cells - 1)
             self.y = SudokuBoard.check_limitations(self.y + self.navigation_keys[key][1], 0, self.y_cells - 1)
+        elif key is pygame.K_BACKSPACE:
+            self.grid[self.x][self.y] = 0
+        else:
+            s = pygame.key.name(key)
+            s = s.replace('[', '')
+            s = s.replace(']', '')
+            if s.isdigit() and int(s) != 0:
+                self.grid[self.x][self.y] = int(s)
+
+    def draw(self):
+        self.draw_lines(self.x_cells + 1, self.cell_size_x, False)
+        self.draw_lines(self.y_cells + 1, self.cell_size_y, True)
+        self.highlight_cell()
+        self.draw_values()
 
     def start(self):
         while not self.done:
