@@ -26,6 +26,13 @@ class SudokuBoard:
         self.x = 0
         self.y = 0
 
+        self.navigation_keys = {
+            pygame.K_LEFT: (-1, 0),
+            pygame.K_RIGHT: (1, 0),
+            pygame.K_UP: (0, -1),
+            pygame.K_DOWN: (0, 1),
+        }
+
     def quit(self):
         self.done = True
 
@@ -65,12 +72,27 @@ class SudokuBoard:
                                           self.cell_size_y)
                          )
 
+    @staticmethod
+    def check_limitations(value, minimum, maximum):
+        if value > maximum:
+            return maximum
+        if value < minimum:
+            return minimum
+        return value
+
+    def check_navigation(self, key):
+        if key in self.navigation_keys.keys():
+            self.x = SudokuBoard.check_limitations(self.x + self.navigation_keys[key][0], 0, self.x_cells - 1)
+            self.y = SudokuBoard.check_limitations(self.y + self.navigation_keys[key][1], 0, self.y_cells - 1)
+
     def start(self):
         while not self.done:
             self.screen.fill((255, 255, 255))
             for event in pygame.event.get():
                 if event.type == pygame.QUIT:
                     self.quit()
+                if event.type == pygame.KEYDOWN:
+                    self.check_navigation(event.key)
             self.draw()
             pygame.display.update()
         pygame.quit()
