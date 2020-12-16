@@ -80,7 +80,14 @@ class SudokuBoard:
             return minimum
         return value
 
-    def check_navigation(self, key):
+    def update_coordinates(self, pos):
+        self.x = SudokuBoard.check_limitations((pos[0] - self.margin) // (self.cell_size_x + 1), 0, self.x_cells - 1)
+        self.y = SudokuBoard.check_limitations((pos[1] - self.margin)  // (self.cell_size_y + 1), 0, self.y_cells - 1)
+
+    def check_mouse_navigation(self):
+        self.update_coordinates(pygame.mouse.get_pos())
+
+    def check_keyboard_navigation(self, key):
         if key in self.navigation_keys.keys():
             self.x = SudokuBoard.check_limitations(self.x + self.navigation_keys[key][0], 0, self.x_cells - 1)
             self.y = SudokuBoard.check_limitations(self.y + self.navigation_keys[key][1], 0, self.y_cells - 1)
@@ -92,7 +99,9 @@ class SudokuBoard:
                 if event.type == pygame.QUIT:
                     self.quit()
                 if event.type == pygame.KEYDOWN:
-                    self.check_navigation(event.key)
+                    self.check_keyboard_navigation(event.key)
+                if event.type == pygame.MOUSEBUTTONDOWN:
+                    self.check_mouse_navigation()
             self.draw()
             pygame.display.update()
         pygame.quit()
