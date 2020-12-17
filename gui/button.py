@@ -5,7 +5,7 @@ class Button:
 
     DEFAULT_PADDING = 10
 
-    def __init__(self, parent, surface, text, font, position, color=(200, 200, 200), text_color=(0, 0, 0),
+    def __init__(self, parent, surface, text, font, position=(0, 0), color=(200, 200, 200), text_color=(0, 0, 0),
                  cover_color=(150, 150, 150)):
         self.text = text
         self.text_color = text_color
@@ -26,8 +26,11 @@ class Button:
         parent.add_observer(self)
 
     @staticmethod
-    def get_size(text, font, padding=DEFAULT_PADDING):
+    def check_size(text, font, padding=DEFAULT_PADDING):
         return [dim + 2 * padding for dim in font.size(text)]
+
+    def get_size(self):
+        return [dim + 2 * self.padding for dim in self.font.size(self.text)]
 
     def draw(self):
         pygame.draw.rect(self.surface, self.current_color,
