@@ -12,10 +12,13 @@ class SudokuBoard:
         self.done = False
 
         self.x_cells = 9
-        self.x_cells_group = 3
+        self.x_group_size = 3
 
         self.y_cells = 9
-        self.y_cells_group = 3
+        self.y_group_size = 3
+
+        self.x_groups_count = int(self.x_cells / self.x_group_size)
+        self.y_groups_count = int(self.y_cells / self.y_group_size)
 
         pygame.font.init()
         self.font = pygame.font.SysFont("cambriacambriamath", 30)
@@ -53,15 +56,16 @@ class SudokuBoard:
         self.grid = np.zeros(shape=(self.x_cells, self.y_cells), dtype=int)
 
         test_array = [[8, 3, 5, 4, 1, 6, 9, 2, 7],
-                           [2, 9, 6, 8, 5, 7, 4, 3, 1],
-                           [4, 1, 7, 2, 9, 3, 6, 5, 8],
-                           [5, 6, 9, 1, 3, 4, 7, 8, 2],
-                           [1, 2, 3, 6, 7, 8, 5, 4, 9],
-                           [7, 4, 8, 5, 2, 9, 1, 6, 3],
-                           [6, 5, 2, 7, 8, 1, 3, 9, 4],
-                           [9, 8, 1, 3, 4, 5, 2, 7, 6],
-                           [3, 7, 4, 9, 6, 2, 8, 1, 5]]
+                      [2, 9, 6, 8, 5, 7, 4, 3, 1],
+                      [4, 1, 7, 2, 9, 3, 6, 5, 8],
+                      [5, 6, 9, 1, 3, 4, 7, 8, 2],
+                      [1, 2, 3, 6, 7, 8, 5, 4, 9],
+                      [7, 4, 8, 5, 2, 9, 1, 6, 3],
+                      [6, 5, 2, 7, 8, 1, 3, 9, 4],
+                      [9, 8, 1, 3, 4, 5, 2, 7, 6],
+                      [3, 7, 4, 9, 6, 2, 8, 1, 5]]
         self.grid = np.array(test_array)
+        self.elements_set = set([i for i in range(1, self.x_group_size * self.y_group_size + 1)])
 
         self.observers = []
         self.check_button = Button(parent=self,
@@ -114,8 +118,8 @@ class SudokuBoard:
     def highlight_cell(self):
         if self.x is None or self.y is None:
             return
-        line_fix_x = 2 if self.x % self.x_cells_group == 0 else 1
-        line_fix_y = 2 if self.y % self.y_cells_group == 0 else 1
+        line_fix_x = 2 if self.x % self.x_group_size == 0 else 1
+        line_fix_y = 2 if self.y % self.y_group_size == 0 else 1
         pygame.draw.rect(surface=self.screen,
                          color=self.highlight_color,
                          rect=pygame.Rect(self.margin + self.x * self.cell_size_x + line_fix_x,
@@ -191,37 +195,26 @@ class SudokuBoard:
             self.info_color = (186, 0, 0)
         threading.Thread(target=self.animate_and_hide_info).start()
 
-    @staticmethod
-    def check_iterable(elements, iter_obj):
-        for required_el in elements:
-            if required_el not in iter_obj:
-                return False
-        return True
+    def is_iterable_valid(self, iter_obj):
+        return set(iter_obj) == self.elements_set
 
-    @staticmethod
-    def check_rows(grid, elements):
-        for row in grid:
-            if not SudokuBoard.check_iterable(elements, row):
-                return False
-        return True
+    def are_rows_valid(self, grid):
+        return not any(not self.is_iterable_valid(row) for row in grid)
 
-    def check_groups(self, elements):
-        x_groups = int(self.x_cells / self.x_cells_group)
-        y_groups = int(self.y_cells / self.y_cells_group)
-        for i in range(0, x_groups):
-            for j in range(0, y_groups):
-                sub_g = self.grid[i * self.x_cells_group:(i + 1) * self.x_cells_group,
-                        j * self.y_cells_group:(j + 1) * self.y_cells_group]
-                sub_g = sub_g.reshape(self.x_cells_group * self.y_cells_group)
-                if not SudokuBoard.check_iterable(elements, sub_g):
-                    return False
-        return True
+    def get_group(self, group_x_number, group_y_number):
+        r_s = group_x_number * self.x_group_size
+        c_s = group_y_number * self.y_group_size
+        return self.grid[r_s:r_s + self.x_group_size, c_s:c_s + self.y_group_size] \
+            .reshape(self.x_group_size * self.y_group_size)
+
+    def are_groups_valid(self):
+        return not any(not self.is_iterable_valid(self.get_group(i, j)) for i in range(self.x_groups_count)
+                       for j in range(self.y_groups_count))
 
     def check(self):
-        elements = range(1, self.y_cells_group * self.x_cells_group)
-        rows_correct = self.check_rows(self.grid, elements)
-        columns_correct = self.check_rows(np.rot90(self.grid), elements)
-        groups_correct = self.check_groups(elements)
+        rows_correct = self.are_rows_valid(self.grid)
+        columns_correct = self.are_rows_valid(np.rot90(self.grid))
+        groups_correct = self.are_groups_valid()
         return rows_correct and columns_correct and groups_correct
 
     def start(self):
