@@ -64,7 +64,17 @@ class SudokuBoard:
                       [6, 5, 2, 7, 8, 1, 3, 9, 4],
                       [9, 8, 1, 3, 4, 5, 2, 7, 6],
                       [3, 7, 4, 9, 6, 2, 8, 1, 5]]
-        self.grid = np.array(test_array)
+        test_array_unsolvable = [[7, 8, 1, 5, 4, 3, 9, 2, 6],
+                                 [0, 0, 6, 1, 7, 9, 5, 0, 0],
+                                 [9, 5, 4, 6, 2, 8, 7, 3, 1],
+                                 [6, 9, 5, 8, 3, 7, 2, 1, 4],
+                                 [1, 4, 8, 2, 6, 5, 3, 7, 9],
+                                 [3, 2, 7, 9, 1, 4, 8, 0, 0],
+                                 [4, 1, 3, 7, 5, 2, 6, 9, 8],
+                                 [0, 0, 2, 0, 0, 0, 4, 0, 0],
+                                 [5, 7, 9, 4, 8, 6, 1, 0, 3]]
+
+        self.grid = np.array(test_array_unsolvable)
         self.elements_set = set([i for i in range(1, self.x_group_size * self.y_group_size + 1)])
 
         self.observers = []
@@ -80,7 +90,7 @@ class SudokuBoard:
                                    font=self.button_font,
                                    position=(2 * self.margin + Button.get_size("Check", self.button_font)[0],
                                              self.grid_height))
-        self.solve_button.set_on_click_event(self.solve)
+        self.solve_button.set_on_click_event(lambda: threading.Thread(target=self.solve).start())
 
         self.info = None
 
@@ -235,6 +245,11 @@ class SudokuBoard:
                         options = self.elements_set - taken - {0}
                         if len(options) == 1:
                             self.grid[i][j] = options.pop()
+                        if len(options) == 0:
+                            self.info = 'Unsolvable!'
+                            self.info_color = (186, 0, 0)
+                            threading.Thread(target=self.animate_and_hide_info).start()
+                            return
 
     def start(self):
         while not self.done:
