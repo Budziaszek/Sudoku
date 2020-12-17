@@ -74,6 +74,13 @@ class SudokuBoard:
                                    font=self.button_font,
                                    position=(self.margin, self.grid_height))
         self.check_button.set_on_click_event(self.check_and_display_info)
+        self.solve_button = Button(parent=self,
+                                   surface=self.screen,
+                                   text="Solve",
+                                   font=self.button_font,
+                                   position=(2 * self.margin + Button.get_size("Check", self.button_font)[0],
+                                             self.grid_height))
+        self.solve_button.set_on_click_event(self.solve)
 
         self.info = None
 
@@ -175,6 +182,7 @@ class SudokuBoard:
         self.highlight_cell()
         self.draw_values()
         self.check_button.draw()
+        self.solve_button.draw()
         self.draw_info()
 
     def animate_and_hide_info(self):
@@ -216,6 +224,17 @@ class SudokuBoard:
         columns_correct = self.are_rows_valid(np.rot90(self.grid))
         groups_correct = self.are_groups_valid()
         return rows_correct and columns_correct and groups_correct
+
+    def solve(self):
+        while any(0 in x for x in self.grid):
+            for i in range(len(self.grid)):
+                for j in range(len(self.grid[i])):
+                    if self.grid[i][j] == 0:
+                        x, y = i // self.x_group_size, j // self.y_group_size
+                        taken = set(self.grid[i]) | set([row[j] for row in self.grid]) | set(self.get_group(x, y))
+                        options = self.elements_set - taken - {0}
+                        if len(options) == 1:
+                            self.grid[i][j] = options.pop()
 
     def start(self):
         while not self.done:
