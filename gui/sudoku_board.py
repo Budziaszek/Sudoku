@@ -5,6 +5,8 @@ import threading
 import time
 import numpy as np
 
+from gui.layout import Layout
+
 
 class SudokuBoard:
 
@@ -27,7 +29,7 @@ class SudokuBoard:
 
         self.cell_size_x = self.cell_size_y = 40
         self.margin = 10
-        self.button_height = Button.get_size('', self.button_font)[1]
+        self.button_height = Button.check_size('', self.button_font)[1]
 
         self.grid_width = self.cell_size_x * self.x_cells + 2 * self.margin
         self.grid_height = self.cell_size_y * self.y_cells + 2 * self.margin
@@ -81,16 +83,18 @@ class SudokuBoard:
         self.check_button = Button(parent=self,
                                    surface=self.screen,
                                    text="Check",
-                                   font=self.button_font,
-                                   position=(self.margin, self.grid_height))
+                                   font=self.button_font)
         self.check_button.set_on_click_event(self.check_and_display_info)
         self.solve_button = Button(parent=self,
                                    surface=self.screen,
                                    text="Solve",
-                                   font=self.button_font,
-                                   position=(2 * self.margin + Button.get_size("Check", self.button_font)[0],
-                                             self.grid_height))
+                                   font=self.button_font)
         self.solve_button.set_on_click_event(lambda: threading.Thread(target=self.solve).start())
+
+        self.buttons_layout = Layout(start=(self.margin, self.grid_height),
+                                     max_size=self.window_width - 2*self.margin)
+        self.buttons_layout.add_element(self.check_button)
+        self.buttons_layout.add_element(self.solve_button)
 
         self.info = None
 
@@ -191,8 +195,9 @@ class SudokuBoard:
         self.draw_lines(self.y_cells + 1, self.cell_size_y, True)
         self.highlight_cell()
         self.draw_values()
-        self.check_button.draw()
-        self.solve_button.draw()
+        # self.check_button.draw()
+        # self.solve_button.draw()
+        self.buttons_layout.draw()
         self.draw_info()
 
     def animate_and_hide_info(self):
