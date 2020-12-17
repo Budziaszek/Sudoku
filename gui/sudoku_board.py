@@ -13,26 +13,27 @@ class SudokuBoard:
     def __init__(self):
         self.done = False
 
-        self.x_cells = 9
-        self.x_group_size = 3
+        self.cells_in_row = 9
+        self.row_group_size = 3
 
-        self.y_cells = 9
-        self.y_group_size = 3
+        self.cells_in_column = 9
+        self.column_group_size = 3
 
-        self.x_groups_count = int(self.x_cells / self.x_group_size)
-        self.y_groups_count = int(self.y_cells / self.y_group_size)
+        self.groups_in_row = int(self.cells_in_row / self.row_group_size)
+        self.groups_in_column = int(self.cells_in_column / self.column_group_size)
 
         pygame.font.init()
         self.font = pygame.font.SysFont("cambriacambriamath", 30)
         self.button_font = pygame.font.SysFont("cambriacambriamath", 18)
         self.info_font = pygame.font.SysFont("cambriacambriamath", 45, bold=True)
 
-        self.cell_size_x = self.cell_size_y = 40
+        self.cell_width = 40
+        self.cell_height = 40
         self.margin = 10
         self.button_height = Button.check_size('', self.button_font)[1]
 
-        self.grid_width = self.cell_size_x * self.x_cells + 2 * self.margin
-        self.grid_height = self.cell_size_y * self.y_cells + 2 * self.margin
+        self.grid_width = self.cell_width * self.cells_in_row + 2 * self.margin
+        self.grid_height = self.cell_height * self.cells_in_column + 2 * self.margin
         self.window_width = self.grid_width
         self.window_height = self.grid_height + self.button_height + 1 * self.margin
 
@@ -45,8 +46,8 @@ class SudokuBoard:
         self.system_value_color = (44, 181, 2)
         self.highlight_color = (174, 237, 111)
 
-        self.x = 0
-        self.y = 0
+        self.selected_row = 0
+        self.selected_column = 0
 
         self.navigation_keys = {
             pygame.K_LEFT: (-1, 0),
@@ -55,7 +56,7 @@ class SudokuBoard:
             pygame.K_DOWN: (0, 1),
         }
 
-        self.grid = np.zeros(shape=(self.x_cells, self.y_cells), dtype=int)
+        self.grid = np.zeros(shape=(self.cells_in_row, self.cells_in_column), dtype=int)
 
         test_array = [[8, 3, 5, 4, 1, 6, 9, 2, 7],
                       [2, 9, 6, 8, 5, 7, 4, 3, 1],
@@ -76,8 +77,8 @@ class SudokuBoard:
                                  [0, 0, 2, 0, 0, 0, 4, 0, 0],
                                  [5, 7, 9, 4, 8, 6, 1, 0, 3]]
 
-        self.grid = np.array(test_array_unsolvable)
-        self.elements_set = set([i for i in range(1, self.x_group_size * self.y_group_size + 1)])
+        self.grid = np.array(test_array)
+        self.elements_set = set([i for i in range(1, self.row_group_size * self.column_group_size + 1)])
 
         self.observers = []
         self.check_button = Button(parent=self,
@@ -92,7 +93,7 @@ class SudokuBoard:
         self.solve_button.set_on_click_event(lambda: threading.Thread(target=self.solve).start())
 
         self.buttons_layout = Layout(start=(self.margin, self.grid_height),
-                                     max_size=self.window_width - 2*self.margin)
+                                     max_size=self.window_width - 2 * self.margin)
         self.buttons_layout.add_element(self.check_button)
         self.buttons_layout.add_element(self.solve_button)
 
@@ -124,29 +125,29 @@ class SudokuBoard:
                              end_pos=end_pos,
                              width=(2 if i % 3 == 0 else 1))
 
-    def draw_value(self, value, x, y):
+    def draw_value(self, value, row, column):
         text = self.font.render(str(value), True, self.value_color)
-        text_rect = text.get_rect(center=((x * self.cell_size_x) + self.margin + self.cell_size_x / 2,
-                                          (y * self.cell_size_y) + self.margin + self.cell_size_y / 2))
+        text_rect = text.get_rect(center=((column * self.cell_width) + self.margin + self.cell_width / 2,
+                                          (row * self.cell_height) + self.margin + self.cell_height / 2,))
         self.screen.blit(text, text_rect)
 
     def draw_values(self):
-        for i in range(self.x_cells):
-            for j in range(self.y_cells):
+        for i in range(self.cells_in_row):
+            for j in range(self.cells_in_column):
                 if self.grid[i][j] != 0:
                     self.draw_value(self.grid[i][j], i, j)
 
     def highlight_cell(self):
-        if self.x is None or self.y is None:
+        if self.selected_row is None or self.selected_column is None:
             return
-        line_fix_x = 2 if self.x % self.x_group_size == 0 else 1
-        line_fix_y = 2 if self.y % self.y_group_size == 0 else 1
+        line_fix_row = 2 if self.selected_row % self.row_group_size == 0 else 1
+        line_fix_column = 2 if self.selected_column % self.column_group_size == 0 else 1
         pygame.draw.rect(surface=self.screen,
                          color=self.highlight_color,
-                         rect=pygame.Rect(self.margin + self.x * self.cell_size_x + line_fix_x,
-                                          self.margin + self.y * self.cell_size_y + line_fix_y,
-                                          self.cell_size_x - line_fix_x,
-                                          self.cell_size_y - line_fix_y)
+                         rect=pygame.Rect(self.margin + self.selected_row * self.cell_width + line_fix_row,
+                                          self.margin + self.selected_column * self.cell_height + line_fix_column,
+                                          self.cell_width - line_fix_row,
+                                          self.cell_height - line_fix_column)
                          )
 
     @staticmethod
@@ -158,30 +159,30 @@ class SudokuBoard:
         return True
 
     def get_cell_pos(self, pos):
-        cell_x = (pos[0] - self.margin) // (self.cell_size_x + 1)
-        cell_y = (pos[1] - self.margin) // (self.cell_size_y + 1)
+        cell_x = (pos[0] - self.margin) // (self.cell_width + 1)
+        cell_y = (pos[1] - self.margin) // (self.cell_height + 1)
         return cell_x, cell_y
 
     def update_selected_cell(self, cell_x, cell_y):
-        if SudokuBoard.check_limitations(cell_x, 0, self.x_cells - 1):
-            if SudokuBoard.check_limitations(cell_y, 0, self.y_cells - 1):
-                self.x = cell_x
-                self.y = cell_y
+        if SudokuBoard.check_limitations(cell_x, 0, self.cells_in_row - 1):
+            if SudokuBoard.check_limitations(cell_y, 0, self.cells_in_column - 1):
+                self.selected_row = cell_x
+                self.selected_column = cell_y
 
     def check_mouse_navigation(self):
         self.update_selected_cell(*self.get_cell_pos(pygame.mouse.get_pos()))
 
     def check_keyboard_navigation(self, key):
         if key in self.navigation_keys.keys():
-            self.update_selected_cell(self.x + self.navigation_keys[key][0], self.y + self.navigation_keys[key][1])
+            self.update_selected_cell(self.selected_row + self.navigation_keys[key][0], self.selected_column + self.navigation_keys[key][1])
         elif key is pygame.K_BACKSPACE:
-            self.grid[self.x][self.y] = 0
+            self.grid[self.selected_column][self.selected_row] = 0
         else:
             s = pygame.key.name(key)
             s = s.replace('[', '')
             s = s.replace(']', '')
             if s.isdigit() and int(s) != 0:
-                self.grid[self.x][self.y] = int(s)
+                self.grid[self.selected_column][self.selected_row] = int(s)
 
     def draw_info(self):
         if self.info is None:
@@ -191,12 +192,10 @@ class SudokuBoard:
         self.screen.blit(info, into_text_rect)
 
     def draw(self):
-        self.draw_lines(self.x_cells + 1, self.cell_size_x, False)
-        self.draw_lines(self.y_cells + 1, self.cell_size_y, True)
+        self.draw_lines(self.cells_in_row + 1, self.cell_width, False)
+        self.draw_lines(self.cells_in_column + 1, self.cell_height, True)
         self.highlight_cell()
         self.draw_values()
-        # self.check_button.draw()
-        # self.solve_button.draw()
         self.buttons_layout.draw()
         self.draw_info()
 
@@ -209,14 +208,14 @@ class SudokuBoard:
             else:
                 self.info = None
 
-    def check_and_display_info(self):
-        if self.check():
-            self.info = "Correct!"
-            self.info_color = (22, 112, 4)
-        else:
-            self.info = 'Incorrect!'
-            self.info_color = (186, 0, 0)
+    def display_info(self, message, positive=True):
+        self.info = message
+        self.info_color = (22, 112, 4) if positive else (186, 0, 0)
         threading.Thread(target=self.animate_and_hide_info).start()
+
+    def check_and_display_info(self):
+        correct = self.check()
+        self.display_info("Correct" if correct else "Incorrect!", correct)
 
     def is_iterable_valid(self, iter_obj):
         return set(iter_obj) == self.elements_set
@@ -224,15 +223,15 @@ class SudokuBoard:
     def are_rows_valid(self, grid):
         return not any(not self.is_iterable_valid(row) for row in grid)
 
-    def get_group(self, group_x_number, group_y_number):
-        r_s = group_x_number * self.x_group_size
-        c_s = group_y_number * self.y_group_size
-        return self.grid[r_s:r_s + self.x_group_size, c_s:c_s + self.y_group_size] \
-            .reshape(self.x_group_size * self.y_group_size)
+    def get_group(self, array, group_x_number, group_y_number):
+        r_s = group_x_number * self.row_group_size
+        c_s = group_y_number * self.column_group_size
+        return array[r_s:r_s + self.row_group_size, c_s:c_s + self.column_group_size] \
+            .reshape(self.row_group_size * self.column_group_size)
 
     def are_groups_valid(self):
-        return not any(not self.is_iterable_valid(self.get_group(i, j)) for i in range(self.x_groups_count)
-                       for j in range(self.y_groups_count))
+        return not any(not self.is_iterable_valid(self.get_group(self.grid, i, j)) for i in range(self.groups_in_row)
+                       for j in range(self.groups_in_column))
 
     def check(self):
         rows_correct = self.are_rows_valid(self.grid)
@@ -240,21 +239,58 @@ class SudokuBoard:
         groups_correct = self.are_groups_valid()
         return rows_correct and columns_correct and groups_correct
 
+    @staticmethod
+    def remove_values_from_line(value, line):
+        for i, element in enumerate(line):
+            if value in element:
+                element.remove(value)
+
+    def remove_candidate_values(self, candidate_values, cell_x, cell_y):
+        value = self.grid[cell_x][cell_y]
+
+        self.remove_values_from_line(value, candidate_values[cell_x])
+        self.remove_values_from_line(value, candidate_values[:, cell_y])
+        group_x, group_y = cell_x // self.row_group_size, cell_y // self.column_group_size
+
+        self.remove_values_from_line(value, self.get_group(candidate_values, group_x, group_y))
+
+    def get_empty_cell(self, candidate_values):
+        minimum = len(self.elements_set)
+        x, y = -1, -1
+        for i in range(self.cells_in_row):
+            for j in range(self.cells_in_column):
+                if self.grid[i][j] == 0 and len(candidate_values[i][j]) < minimum:
+                    minimum = len(candidate_values[i][j])
+                    x, y = i, j
+                    if minimum == 1:
+                        return x, y
+        return x, y
+
     def solve(self):
-        while any(0 in x for x in self.grid):
-            for i in range(len(self.grid)):
-                for j in range(len(self.grid[i])):
-                    if self.grid[i][j] == 0:
-                        x, y = i // self.x_group_size, j // self.y_group_size
-                        taken = set(self.grid[i]) | set([row[j] for row in self.grid]) | set(self.get_group(x, y))
-                        options = self.elements_set - taken - {0}
-                        if len(options) == 1:
-                            self.grid[i][j] = options.pop()
-                        if len(options) == 0:
-                            self.info = 'Unsolvable!'
-                            self.info_color = (186, 0, 0)
-                            threading.Thread(target=self.animate_and_hide_info).start()
-                            return
+        if not any(0 in row for row in self.grid):
+            self.display_info('Solved!', positive=True)
+
+        candidate_values = np.array([[self.elements_set.copy() if self.grid[i][j] == 0 else {self.grid[i][j]}
+                                      for j in range(self.cells_in_row)] for i in range(self.cells_in_column)])
+
+        for i in range(self.cells_in_row):
+            for j in range(self.cells_in_column):
+                if self.grid[i][j] != 0:
+                    self.remove_candidate_values(candidate_values, i, j)
+
+        while any(0 in row for row in self.grid):
+            x, y = self.get_empty_cell(candidate_values)
+            options = candidate_values[x][y]
+            if len(options) == 1:
+                self.grid[x][y] = options.pop()
+            elif len(options) == 0:
+                self.display_info('Unsolvable!', positive=False)
+                return
+            elif len(options) > 0:
+                self.display_info('Not supported!', positive=False)
+                return
+            self.remove_candidate_values(candidate_values, x, y)
+        self.display_info('Solved!', positive=True)
 
     def start(self):
         while not self.done:
