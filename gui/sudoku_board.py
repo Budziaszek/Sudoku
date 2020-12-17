@@ -187,9 +187,12 @@ class SudokuBoard:
     def draw_info(self):
         if self.info is None:
             return
-        info = self.info_font.render(self.info, True, self.info_color)
-        into_text_rect = info.get_rect(center=(self.grid_width / 2, self.grid_height / 2))
-        self.screen.blit(info, into_text_rect)
+        info_text = self.info.split('\n')
+        for i, text in enumerate(info_text):
+            info = self.info_font.render(text, True, self.info_color)
+            into_text_rect = info.get_rect(center=(self.grid_width / 2, self.grid_height / 2
+                                                   + info.get_size()[1] * i - info.get_size()[1] * len(info_text)/2))
+            self.screen.blit(info, into_text_rect)
 
     def draw(self):
         self.draw_lines(self.cells_in_row + 1, self.cell_width, False)
@@ -245,8 +248,8 @@ class SudokuBoard:
             if value in element:
                 element.remove(value)
 
-    def remove_candidate_values(self, candidate_values, cell_x, cell_y):
-        value = self.grid[cell_x][cell_y]
+    def remove_candidate_values(self, grid, candidate_values, cell_x, cell_y):
+        value = grid[cell_x][cell_y]
 
         self.remove_values_from_line(value, candidate_values[cell_x])
         self.remove_values_from_line(value, candidate_values[:, cell_y])
@@ -254,17 +257,37 @@ class SudokuBoard:
 
         self.remove_values_from_line(value, self.get_group(candidate_values, group_x, group_y))
 
-    def get_empty_cell(self, candidate_values):
+    def get_empty_cell(self, grid, candidate_values):
         minimum = len(self.elements_set)
         x, y = -1, -1
         for i in range(self.cells_in_row):
             for j in range(self.cells_in_column):
-                if self.grid[i][j] == 0 and len(candidate_values[i][j]) < minimum:
+                if grid[i][j] == 0 and len(candidate_values[i][j]) < minimum:
                     minimum = len(candidate_values[i][j])
                     x, y = i, j
                     if minimum == 1:
                         return x, y
         return x, y
+
+    def prepare_run(self, values, candidate_values, option, x, y):
+        v = values.copy()
+        c_v = candidate_values.copy()
+        v[x][y] = option
+        self.remove_candidate_values(v, c_v, x, y)
+        return self.run_solver(v, c_v)
+
+    def run_solver(self, values, candidate_values):
+        while any(0 in row for row in values):
+            x, y = self.get_empty_cell(values, candidate_values)
+            options = candidate_values[x][y]
+            if len(options) == 1:
+                values[x][y] = options.pop()
+            elif len(options) == 0:
+                return -1
+            elif len(options) > 0:
+                return [self.prepare_run(values, candidate_values, option, x, y) for option in options.copy()]
+            self.remove_candidate_values(values, candidate_values, x, y)
+        return values
 
     def solve(self):
         if not any(0 in row for row in self.grid):
@@ -276,21 +299,17 @@ class SudokuBoard:
         for i in range(self.cells_in_row):
             for j in range(self.cells_in_column):
                 if self.grid[i][j] != 0:
-                    self.remove_candidate_values(candidate_values, i, j)
+                    self.remove_candidate_values(self.grid, candidate_values, i, j)
 
-        while any(0 in row for row in self.grid):
-            x, y = self.get_empty_cell(candidate_values)
-            options = candidate_values[x][y]
-            if len(options) == 1:
-                self.grid[x][y] = options.pop()
-            elif len(options) == 0:
-                self.display_info('Unsolvable!', positive=False)
-                return
-            elif len(options) > 0:
-                self.display_info('Not supported!', positive=False)
-                return
-            self.remove_candidate_values(candidate_values, x, y)
-        self.display_info('Solved!', positive=True)
+        result = self.run_solver(self.grid, candidate_values)
+
+        if isinstance(result, np.ndarray):
+            self.grid = result
+            self.display_info('Solved!', positive=True)
+        elif result is None:
+            self.display_info('Unsolvable!', positive=False)
+        else:
+            self.display_info('Not uniquely\n solvable!', positive=False)
 
     def start(self):
         while not self.done:
