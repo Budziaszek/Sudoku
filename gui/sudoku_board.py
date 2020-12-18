@@ -1,3 +1,5 @@
+from random import randrange, choice, shuffle
+
 import pygame
 
 from gui.button import Button
@@ -81,23 +83,26 @@ class SudokuBoard:
         self.elements_set = set([i for i in range(1, self.row_group_size * self.column_group_size + 1)])
 
         self.observers = []
-        self.check_button = Button(parent=self,
-                                   surface=self.screen,
-                                   text="Check",
-                                   font=self.button_font)
+        self.generate_button = Button(parent=self, surface=self.screen, text="Generate", font=self.button_font)
+        self.generate_button.set_on_click_event(lambda: threading.Thread(target=self.generate_grid).start())
+        self.check_button = Button(parent=self, surface=self.screen, text="Check", font=self.button_font)
         self.check_button.set_on_click_event(self.check_and_display_info)
-        self.solve_button = Button(parent=self,
-                                   surface=self.screen,
-                                   text="Solve",
-                                   font=self.button_font)
+        self.solve_button = Button(parent=self, surface=self.screen, text="Solve", font=self.button_font)
         self.solve_button.set_on_click_event(lambda: threading.Thread(target=self.solve).start())
+        self.clean_button = Button(parent=self, surface=self.screen, text="Clean", font=self.button_font)
+        self.clean_button.set_on_click_event(lambda: threading.Thread(target=self.clean).start())
 
         self.buttons_layout = Layout(start=(self.margin, self.grid_height),
                                      max_size=self.window_width - 2 * self.margin)
+        self.buttons_layout.add_element(self.generate_button)
         self.buttons_layout.add_element(self.check_button)
         self.buttons_layout.add_element(self.solve_button)
+        self.buttons_layout.add_element(self.clean_button)
 
         self.info = None
+
+    def clean(self):
+        self.grid = np.zeros(shape=(self.cells_in_row, self.cells_in_column), dtype=int)
 
     def add_observer(self, observer):
         self.observers.append(observer)
@@ -174,7 +179,8 @@ class SudokuBoard:
 
     def check_keyboard_navigation(self, key):
         if key in self.navigation_keys.keys():
-            self.update_selected_cell(self.selected_row + self.navigation_keys[key][0], self.selected_column + self.navigation_keys[key][1])
+            self.update_selected_cell(self.selected_row + self.navigation_keys[key][0],
+                                      self.selected_column + self.navigation_keys[key][1])
         elif key is pygame.K_BACKSPACE:
             self.grid[self.selected_column][self.selected_row] = 0
         else:
@@ -191,7 +197,7 @@ class SudokuBoard:
         for i, text in enumerate(info_text):
             info = self.info_font.render(text, True, self.info_color)
             into_text_rect = info.get_rect(center=(self.grid_width / 2, self.grid_height / 2
-                                                   + info.get_size()[1] * i - info.get_size()[1] * len(info_text)/2))
+                                                   + info.get_size()[1] * i - info.get_size()[1] * len(info_text) / 2))
             self.screen.blit(info, into_text_rect)
 
     def draw(self):
@@ -243,19 +249,20 @@ class SudokuBoard:
         return rows_correct and columns_correct and groups_correct
 
     @staticmethod
-    def remove_values_from_line(value, line):
+    def modify_values_in_line(value, line, modify_function):
         for i, element in enumerate(line):
             if value in element:
-                element.remove(value)
+                modify_function(element, value)
+                # element.remove(value)
 
-    def remove_candidate_values(self, grid, candidate_values, cell_x, cell_y):
+    def modify_candidate_values(self, grid, candidate_values, cell_x, cell_y, modify_function):
         value = grid[cell_x][cell_y]
 
-        self.remove_values_from_line(value, candidate_values[cell_x])
-        self.remove_values_from_line(value, candidate_values[:, cell_y])
-        group_x, group_y = cell_x // self.row_group_size, cell_y // self.column_group_size
+        self.modify_values_in_line(value, candidate_values[cell_x], modify_function)
+        self.modify_values_in_line(value, candidate_values[:, cell_y], modify_function)
 
-        self.remove_values_from_line(value, self.get_group(candidate_values, group_x, group_y))
+        group_x, group_y = cell_x // self.row_group_size, cell_y // self.column_group_size
+        self.modify_values_in_line(value, self.get_group(candidate_values, group_x, group_y), modify_function)
 
     def get_empty_cell(self, grid, candidate_values):
         minimum = len(self.elements_set)
@@ -270,46 +277,75 @@ class SudokuBoard:
         return x, y
 
     def prepare_run(self, values, candidate_values, option, x, y):
-        v = values.copy()
-        c_v = candidate_values.copy()
-        v[x][y] = option
-        self.remove_candidate_values(v, c_v, x, y)
-        return self.run_solver(v, c_v)
+        # v = values.copy()
+        # c_v = candidate_values.copy()
+        values[x][y] = option
+        self.modify_candidate_values(values, candidate_values, x, y, lambda s, v: s.remove(v))
+        return self.run_solver(values, self.prepare_candidate_values(values))
 
     def run_solver(self, values, candidate_values):
-        while any(0 in row for row in values):
-            x, y = self.get_empty_cell(values, candidate_values)
-            options = candidate_values[x][y]
-            if len(options) == 1:
-                values[x][y] = options.pop()
-            elif len(options) == 0:
-                return -1
-            elif len(options) > 0:
-                return [self.prepare_run(values, candidate_values, option, x, y) for option in options.copy()]
-            self.remove_candidate_values(values, candidate_values, x, y)
-        return values
+        # Solved
+        if not any(0 in row for row in values):
+            yield values
+        # Choose empty cell with fewest candidate values
+        x, y = self.get_empty_cell(values, candidate_values)
+        options = candidate_values[x][y]
+        # Unsolvable
+        if len(options) == 0:
+            yield None
+        else:
+            options_list = list(options)
+            shuffle(options_list)
+            for option in options_list:
+                values[x][y] = option
+                self.modify_candidate_values(values, candidate_values, x, y, lambda s, v: s.remove(v))
+                yield from self.run_solver(values, self.prepare_candidate_values(values))
+                values[x][y] = 0
+                self.modify_candidate_values(values, candidate_values, x, y, lambda s, v: s.add(v))
+
+    def prepare_candidate_values(self, grid):
+        candidate_values = np.array([[self.elements_set.copy() if grid[i][j] == 0 else {grid[i][j]}
+                                      for j in range(self.cells_in_row)] for i in range(self.cells_in_column)])
+
+        for i in range(self.cells_in_row):
+            for j in range(self.cells_in_column):
+                if grid[i][j] != 0:
+                    self.modify_candidate_values(grid, candidate_values, i, j, lambda s, v: s.remove(v))
+        return candidate_values
 
     def solve(self):
         if not any(0 in row for row in self.grid):
             self.display_info('Solved!', positive=True)
 
-        candidate_values = np.array([[self.elements_set.copy() if self.grid[i][j] == 0 else {self.grid[i][j]}
-                                      for j in range(self.cells_in_row)] for i in range(self.cells_in_column)])
-
-        for i in range(self.cells_in_row):
-            for j in range(self.cells_in_column):
-                if self.grid[i][j] != 0:
-                    self.remove_candidate_values(self.grid, candidate_values, i, j)
-
-        result = self.run_solver(self.grid, candidate_values)
-
-        if isinstance(result, np.ndarray):
-            self.grid = result
+        grid = self.grid.copy()
+        counter = 0
+        solution = None
+        for result in self.run_solver(grid, self.prepare_candidate_values(grid)):
+            if counter > 1:
+                self.display_info('Not uniquely\n solvable!', positive=False)
+                return
+            if result is not None:
+                counter += 1
+                solution = result.copy()
+        if solution is not None:
             self.display_info('Solved!', positive=True)
-        elif result is None:
-            self.display_info('Unsolvable!', positive=False)
-        else:
-            self.display_info('Not uniquely\n solvable!', positive=False)
+            self.grid = solution
+            return
+        self.display_info('Unsolvable!', positive=False)
+
+    def generate_grid(self):
+        self.clean()
+        grid = self.grid.copy()
+        candidate_values = self.prepare_candidate_values(grid)
+        for _ in range(10):
+            row_random, column_random = randrange(0, self.cells_in_row, 1), randrange(0, self.cells_in_column, 1)
+            grid[row_random][column_random] = choice(list(candidate_values[row_random][column_random]))
+            self.modify_candidate_values(grid, candidate_values, row_random, column_random, lambda s, v: s.remove(v))
+
+        for result in self.run_solver(grid, self.prepare_candidate_values(grid)):
+            if result is not None:
+                self.grid = result.copy()
+                return
 
     def start(self):
         while not self.done:
