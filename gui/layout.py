@@ -3,7 +3,7 @@ import pygame
 
 class Layout:
 
-    DEFAULT_PADDING = 10
+    DEFAULT_PADDING = 5
     HORIZONTAL = 0
     VERTICAL = 1
 

@@ -3,7 +3,7 @@ import pygame
 
 class Button:
 
-    DEFAULT_PADDING = 10
+    DEFAULT_PADDING = 7
 
     def __init__(self, parent, surface, text, font, position=(0, 0), color=(200, 200, 200), text_color=(0, 0, 0),
                  cover_color=(150, 150, 150)):
