@@ -1,3 +1,4 @@
+from collections import Counter
 from random import randrange, choice, shuffle
 
 import pygame
@@ -11,6 +12,9 @@ from gui.layout import Layout
 
 
 class SudokuBoard:
+    INPUT = 0
+    ACCEPTED = 1
+    WRONG = -1
 
     def __init__(self):
         self.done = False
@@ -27,7 +31,7 @@ class SudokuBoard:
 
         pygame.font.init()
         self.font = pygame.font.SysFont("cambriacambriamath", 30)
-        self.button_font = pygame.font.SysFont("cambriacambriamath", 20)
+        self.button_font = pygame.font.SysFont("cambriacambriamath", 19)
         self.info_font = pygame.font.SysFont("cambriacambriamath", 45, bold=True)
 
         self.cell_width = 40
@@ -44,9 +48,10 @@ class SudokuBoard:
         pygame.display.set_caption("Sudoku")
 
         self.line_color = (0, 0, 0)
-        self.value_color = (0, 0, 0)
+        self.input_value_color = (0, 0, 0)
+        self.accepted_value_color = (44, 181, 2)
+        self.wrong_value_color = (181, 20, 20)
         self.info_color = (0, 0, 0)
-        self.system_value_color = (44, 181, 2)
         self.highlight_color = (174, 237, 111)
 
         self.selected_row = 0
@@ -60,32 +65,15 @@ class SudokuBoard:
         }
 
         self.grid = np.zeros(shape=(self.cells_in_row, self.cells_in_column), dtype=int)
+        self.grid_status = np.full(shape=(self.cells_in_row, self.cells_in_column), fill_value=SudokuBoard.ACCEPTED)
 
-        test_array = [[8, 3, 5, 4, 1, 6, 9, 2, 7],
-                      [2, 9, 6, 8, 5, 7, 4, 3, 1],
-                      [4, 1, 7, 2, 9, 3, 6, 5, 8],
-                      [5, 6, 9, 1, 3, 4, 7, 8, 2],
-                      [1, 2, 3, 6, 7, 8, 5, 4, 9],
-                      [7, 4, 8, 5, 2, 9, 1, 6, 3],
-                      [6, 5, 2, 7, 8, 1, 3, 9, 4],
-                      [9, 8, 1, 3, 4, 5, 2, 7, 6],
-                      [3, 7, 4, 9, 6, 2, 8, 1, 5]]
-        test_array_unsolvable = [[7, 8, 1, 5, 4, 3, 9, 2, 6],
-                                 [0, 0, 6, 1, 7, 9, 5, 0, 0],
-                                 [9, 5, 4, 6, 2, 8, 7, 3, 1],
-                                 [6, 9, 5, 8, 3, 7, 2, 1, 4],
-                                 [1, 4, 8, 2, 6, 5, 3, 7, 9],
-                                 [3, 2, 7, 9, 1, 4, 8, 0, 0],
-                                 [4, 1, 3, 7, 5, 2, 6, 9, 8],
-                                 [0, 0, 2, 0, 0, 0, 4, 0, 0],
-                                 [5, 7, 9, 4, 8, 6, 1, 0, 3]]
-
-        self.grid = np.array(test_array)
         self.elements_set = set([i for i in range(1, self.row_group_size * self.column_group_size + 1)])
 
         self.observers = []
         self.puzzle_button = Button(parent=self, surface=self.screen, text="New puzzle", font=self.button_font)
         self.puzzle_button.set_on_click_event(lambda: threading.Thread(target=self.generate_puzzle).start())
+        self.hint_button = Button(parent=self, surface=self.screen, text="Hint", font=self.button_font)
+        self.hint_button.set_on_click_event(lambda: threading.Thread(target=self.hint).start())
         self.check_button = Button(parent=self, surface=self.screen, text="Check", font=self.button_font)
         self.check_button.set_on_click_event(self.check_and_display_info)
         self.solve_button = Button(parent=self, surface=self.screen, text="Solve", font=self.button_font)
@@ -96,6 +84,7 @@ class SudokuBoard:
         self.buttons_layout = Layout(start=(self.margin, self.grid_height),
                                      max_size=self.window_width - 2 * self.margin)
         self.buttons_layout.add_element(self.puzzle_button)
+        self.buttons_layout.add_element(self.hint_button)
         self.buttons_layout.add_element(self.check_button)
         self.buttons_layout.add_element(self.solve_button)
         self.buttons_layout.add_element(self.clean_button)
@@ -104,6 +93,7 @@ class SudokuBoard:
 
     def clean(self):
         self.grid = np.zeros(shape=(self.cells_in_row, self.cells_in_column), dtype=int)
+        self.grid_status = np.full(shape=(self.cells_in_row, self.cells_in_column), fill_value=SudokuBoard.ACCEPTED)
 
     def add_observer(self, observer):
         self.observers.append(observer)
@@ -132,7 +122,12 @@ class SudokuBoard:
                              width=(2 if i % 3 == 0 else 1))
 
     def draw_value(self, value, row, column):
-        text = self.font.render(str(value), True, self.value_color)
+        color = self.input_value_color
+        if self.grid_status[row][column] == SudokuBoard.WRONG:
+            color = self.wrong_value_color
+        if self.grid_status[row][column] == SudokuBoard.ACCEPTED:
+            color = self.accepted_value_color
+        text = self.font.render(str(value), True, color)
         text_rect = text.get_rect(center=((column * self.cell_width) + self.margin + self.cell_width / 2,
                                           (row * self.cell_height) + self.margin + self.cell_height / 2,))
         self.screen.blit(text, text_rect)
@@ -184,12 +179,14 @@ class SudokuBoard:
                                       self.selected_column + self.navigation_keys[key][1])
         elif key is pygame.K_BACKSPACE:
             self.grid[self.selected_column][self.selected_row] = 0
+            self.grid_status[self.selected_column][self.selected_row] = SudokuBoard.INPUT
         else:
             s = pygame.key.name(key)
             s = s.replace('[', '')
             s = s.replace(']', '')
             if s.isdigit() and int(s) != 0:
                 self.grid[self.selected_column][self.selected_row] = int(s)
+                self.grid_status[self.selected_column][self.selected_row] = SudokuBoard.INPUT
 
     def draw_info(self):
         if self.info is None:
@@ -242,6 +239,26 @@ class SudokuBoard:
     def are_groups_valid(self):
         return not any(not self.is_iterable_valid(self.get_group(self.grid, i, j)) for i in range(self.groups_in_row)
                        for j in range(self.groups_in_column))
+
+    @staticmethod
+    def get_wrong(line):
+        c = Counter(line)
+        for key in c:
+            if c[key] > 1:
+                for i, cell in enumerate(line):
+                    if cell == key:
+                        yield i
+
+    def hint(self):
+        for i, row in enumerate(self.grid):
+            for j in SudokuBoard.get_wrong(row):
+                if self.grid_status[i][j] != SudokuBoard.ACCEPTED:
+                    self.grid_status[i][j] = SudokuBoard.WRONG
+        for j in range(self.cells_in_column):
+            column = self.grid[:, j]
+            for i in SudokuBoard.get_wrong(column):
+                if self.grid_status[i][j] != SudokuBoard.ACCEPTED:
+                    self.grid_status[i][j] = SudokuBoard.WRONG
 
     def check(self):
         rows_correct = self.are_rows_valid(self.grid)
