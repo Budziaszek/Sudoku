@@ -14,6 +14,7 @@ class SudokuBoard:
 
     def __init__(self):
         self.done = False
+        self.remove_attempts = 5
 
         self.cells_in_row = 9
         self.row_group_size = 3
@@ -26,7 +27,7 @@ class SudokuBoard:
 
         pygame.font.init()
         self.font = pygame.font.SysFont("cambriacambriamath", 30)
-        self.button_font = pygame.font.SysFont("cambriacambriamath", 18)
+        self.button_font = pygame.font.SysFont("cambriacambriamath", 20)
         self.info_font = pygame.font.SysFont("cambriacambriamath", 45, bold=True)
 
         self.cell_width = 40
@@ -83,8 +84,8 @@ class SudokuBoard:
         self.elements_set = set([i for i in range(1, self.row_group_size * self.column_group_size + 1)])
 
         self.observers = []
-        self.generate_button = Button(parent=self, surface=self.screen, text="Generate", font=self.button_font)
-        self.generate_button.set_on_click_event(lambda: threading.Thread(target=self.generate_grid).start())
+        self.puzzle_button = Button(parent=self, surface=self.screen, text="New puzzle", font=self.button_font)
+        self.puzzle_button.set_on_click_event(lambda: threading.Thread(target=self.generate_puzzle).start())
         self.check_button = Button(parent=self, surface=self.screen, text="Check", font=self.button_font)
         self.check_button.set_on_click_event(self.check_and_display_info)
         self.solve_button = Button(parent=self, surface=self.screen, text="Solve", font=self.button_font)
@@ -94,7 +95,7 @@ class SudokuBoard:
 
         self.buttons_layout = Layout(start=(self.margin, self.grid_height),
                                      max_size=self.window_width - 2 * self.margin)
-        self.buttons_layout.add_element(self.generate_button)
+        self.buttons_layout.add_element(self.puzzle_button)
         self.buttons_layout.add_element(self.check_button)
         self.buttons_layout.add_element(self.solve_button)
         self.buttons_layout.add_element(self.clean_button)
@@ -316,6 +317,11 @@ class SudokuBoard:
     def solve(self):
         if not any(0 in row for row in self.grid):
             self.display_info('Solved!', positive=True)
+            return
+
+        if np.count_nonzero(self.grid == 0) == self.cells_in_row * self.cells_in_column:
+            self.display_info('Enter values!', positive=False)
+            return
 
         grid = self.grid.copy()
         counter = 0
@@ -344,8 +350,27 @@ class SudokuBoard:
 
         for result in self.run_solver(grid, self.prepare_candidate_values(grid)):
             if result is not None:
-                self.grid = result.copy()
-                return
+                return result.copy()
+
+    def generate_puzzle(self):
+        grid = self.generate_grid()
+
+        remove = 0
+        while remove < self.remove_attempts:
+            row_random, column_random = randrange(0, self.cells_in_row, 1), randrange(0, self.cells_in_column, 1)
+            if grid[row_random][column_random] == 0:
+                continue
+            value = grid[row_random][column_random]
+            grid[row_random][column_random] = 0
+            counter = 0
+            for result in self.run_solver(grid.copy(), self.prepare_candidate_values(grid)):
+                if result is not None:
+                    counter += 1
+                if counter > 1:
+                    remove += 1
+                    grid[row_random][column_random] = value
+                    break
+        self.grid = grid
 
     def start(self):
         while not self.done:
